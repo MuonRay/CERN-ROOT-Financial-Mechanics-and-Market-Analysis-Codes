@@ -1,0 +1,242 @@
+﻿{ 
+  // Created by Platowanab@gmail.com
+  // Date: May 17, 2010
+  // This ROOT script reads in data file "EuroSPX.txt" and creates a simiple
+  // animated gif file showing the hourly correlation between the FXE and SPX
+  // To run the script, open root, at prompt issue command ".x run_FXE_SPX_study.C"  
+  // To create your own animated gif uncomment command at bottom "c.Print("plot.gif+")";
+
+
+  gROOT->Reset(); // reset
+#include <fstream>
+#include <iomanip>
+  
+  // set some style options
+  gStyle->SetPadBorderMode(0);
+  gStyle->SetFrameBorderMode(0);
+  gStyle->SetPalette(8,0); // greyscale palette
+
+
+  fstream infile("EuroSPX.txt",ios::in);
+
+
+  // tempory data containers
+  TString Date;
+  TString Time;
+  float val_CloseEURO;
+  float val_CloseSPX;
+
+
+  // data storage vectors
+  vector<TString> vDate;
+  vector<TString> vTime;
+  vector<float> vCloseEURO;
+  vector<float> vCloseSPX;
+
+
+  int nBars = 0;
+  // Read data from the file
+  // Expecting format: <Date>    <Time>    <EURO>     <SPX>
+  while (infile >> Date >> Time >> val_CloseEURO >> val_CloseSPX)
+    {
+      nBars++;
+      cout << "Storing data for day : " << nBars << endl;
+      cout << "Date:      " << Date << endl;
+      cout << "Time:      " << Time << endl;
+      cout << "Close Euro:" << val_CloseEURO << endl;
+      cout << "Close SPX: " << val_CloseSPX << endl;
+      cout << endl;
+
+
+      // store the data into vectors
+      vDate.push_back(Date);
+      vTime.push_back(Time);
+      vCloseEURO.push_back(val_CloseEURO);
+      vCloseSPX.push_back(val_CloseSPX);
+    }
+
+
+  // Make 1-D histograms to view data
+  TH1F hEURO("hEURO","", nBars, 0,nBars);
+  TH1F hSPX("hSPX","", nBars, 0,nBars);
+  // Make 2-D histograms to visualize data
+  // SPX v EURO histo
+  TH2F hdata("hdata","",5*(145-120),120,145,(1239-1040)/(2.0),1040,1230);
+  // Percent difference histo
+  TH2F hdataPerD("hdataPerD","",80,-1,1,80,-1,1);
+  // turn of statistics displays
+  hEURO.SetStats(0);
+  hSPX.SetStats(0);
+  hdataPerD.SetStats(0);
+  hdata.SetStats(0);
+  // set axis labels
+  hEURO.GetXaxis()->SetTitle("Day");
+  hEURO.GetYaxis()->SetTitle("Close(FXE)");
+  hSPX.GetXaxis()->SetTitle("Day");
+  hSPX.GetYaxis()->SetTitle("Close(SPX)");
+  hdata.GetXaxis()->SetTitle("Close(FXE)");
+  hdata.GetYaxis()->SetTitle("Close(SPX)");
+  hdataPerD.GetXaxis()->SetTitle("% Difference Close(FXE)");
+  hdataPerD.GetYaxis()->SetTitle("% Difference Close(SPX)");
+  // bump axis title over
+  hdata.GetYaxis()->SetTitleOffset(1.2);
+  hEURO.GetYaxis()->SetTitleOffset(1.2);
+  hSPX.GetYaxis()->SetTitleOffset(1.2);
+  hdataPerD.GetYaxis()->SetTitleOffset(1.2);
+  // create a canvas to display histograms
+  float scale = 1.0; // this is to rescale the display canvas if you want to reduce the .gif file size
+  TCanvas c("c","",100,100,scale*1200,scale*800);
+  // divide it into two sections
+  c.Divide(2,2);
+  // turn on grid lines
+  c.GetPad(1).SetGridy(1);
+  c.GetPad(1).SetGridx(1);
+  c.GetPad(2).SetGridy(1);
+  c.GetPad(2).SetGridx(1);
+  c.GetPad(3).SetGridy(1);
+  //c.GetPad(3).SetGridx(1);
+  c.GetPad(4).SetGridy(1);
+  //c.GetPad(4).SetGridx(1);
+
+
+  // Set fill color
+  hEURO.SetFillColor(kGray);
+  hSPX.SetFillColor(kGray);
+
+
+  // set line colors
+  hEURO.SetLineColor(kBlack);
+  hSPX.SetLineColor(kBlack);
+
+
+  // set line width
+  hEURO.SetLineWidth(1);
+  hSPX.SetLineWidth(1);
+  
+  // Set Minimum Hisogram values to display
+  hEURO.SetMinimum(120);
+  hSPX.SetMinimum(1000);
+                
+
+
+  // create a graph to make trace line
+  TGraph g;
+  // make Euro graph
+  TGraph gEuro;
+  
+  // set the graph options
+  g.SetMarkerStyle(4);
+  g.SetMarkerSize(0.5);
+  g.SetLineColor(kGray+2);
+
+
+  int nhrs=14;
+  int pt=0;
+  
+  // loop over all data and fill histograms
+  for (int i=0; i<nBars;i++)
+    {
+      pt=0; // reset graph counter
+      
+
+
+      // fill data for the SPX v EURO histo
+      hdata.Fill(vCloseEURO[i], vCloseSPX[i]);
+  
+      // fill data for SPX histo
+      hSPX.SetBinContent(i+1, vCloseSPX[i]);
+      // set the bin labels to appear on x-axis
+      if (i%20==0) // set label every 20 bars
+        hSPX.GetXaxis()->SetBinLabel(i+1, vDate[i]);
+      // fill data for EURO histo
+      hEURO.SetBinContent(i+1, vCloseEURO[i]);
+      // set the bin labels to appear on x-axis
+      if (i%20==0) // set label every 20 bars     
+        hEURO.GetXaxis()->SetBinLabel(i+1, vDate[i]);  
+
+
+    if (i>0)
+        {
+          // calculate the % diff from bar to bar 
+          float perDiff_EURO = 100*(vCloseEURO[i]-vCloseEURO[i-1])/vCloseEURO[i-1];
+          float perDiff_SPX = 100*(vCloseSPX[i]-vCloseSPX[i-1])/vCloseSPX[i-1];
+          // fill the % diff histo
+          hdataPerD.Fill(perDiff_EURO,perDiff_SPX);
+        }
+      
+      TString title = ""; // make histogram title
+      if (i>(nhrs-1)){
+        title+=nhrs; title+="-hour moving";
+
+
+         // fill the graph with data from the 14 most recent bars
+         for (int j=i-nhrs;j<=i;j++)
+           {
+             g.SetPoint(pt, vCloseEURO[j], vCloseSPX[j]); // fill graph with data 
+             pt++; // increment counter
+           }
+
+
+         float corr = g.GetCorrelationFactor(); // find correlation factor from 14 most recent bars
+
+
+         // include correlation factor in histogram title
+         title+=" correlation( ";
+         title+=vDate[i-nhrs]; title+="-"; title+=vDate[i]; title+=") = ";
+         title+=corr;
+
+
+       }
+       // set the title of the data histo to include the correlation factor
+       hdata.SetTitle(title);
+       
+       // formatting trick for fading colors
+       hdata.SetMaximum(1);
+       hdataPerD.SetMaximum(1);
+
+
+       // go to the left side of the canvas
+       c.cd(1);
+       // draw the data histogram
+       hdata.Draw("COL");
+
+
+       // draw the tracer line for 14 most recent bars
+       if (i>(nhrs-1))
+         g.Draw("L");
+       
+       // go to the right side of the canvas
+       c.cd(2);
+       // draw the % diff histo
+       hdataPerD.Draw("COL");
+       
+       c.cd(3);
+       hSPX.Draw("L");
+       
+       c.cd(4);
+       hEURO.Draw("L");
+       
+       // update the canvas
+       c.cd();
+       c.Update();
+
+
+       // uncomment to make the animated gif file
+       // c.Print("plot.gif+");
+       
+       // this is a trick to fade the old data to white
+       hdata.Scale(0.997);
+       if (i>0)
+         hdataPerD.Scale(0.997);
+
+
+       // clear the graph to fill the next 14 bars
+       g.Clear();
+    }
+ 
+      
+
+
+
+
+}
